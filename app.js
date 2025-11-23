@@ -1,76 +1,93 @@
-// ================= TAB SWITCHING =================
-function switchTab(tab) {
-    document.querySelectorAll("main").forEach(m => m.classList.add("hidden"));
-    document.getElementById(`view-${tab}`).classList.remove("hidden");
+import { auth, db } from './firebase-config.js';
+import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js";
+import { collection, addDoc, getDocs, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
 
-    document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
-    document.getElementById(`nav-${tab}`).classList.add("active");
-}
+// --- DOM Elements ---
+const loginModal = document.getElementById('login-modal');
+const loginForm = document.getElementById('login-form');
+const logoutBtn = document.getElementById('logout-btn');
+const userEmailDisplay = document.getElementById('user-email-display');
+const prayerList = document.getElementById('prayer-list');
+const accountsList = document.getElementById('accounts-list');
+const transactionList = document.getElementById('transaction-list');
+const totalBalanceEl = document.getElementById('total-balance');
+const totalIncomeEl = document.getElementById('total-income');
+const totalExpenseEl = document.getElementById('total-expense');
 
-// ================= MODALS =================
-function openTransactionModal() {
-    document.getElementById("transaction-modal").classList.remove("hidden");
-}
-
-function closeTransactionModal() {
-    document.getElementById("transaction-modal").classList.add("hidden");
-}
-
-function closeLoginModal() {
-    document.getElementById("login-modal").classList.add("hidden");
-}
-
-// ================= LOGIN (Placeholder) =================
-function handleLoginSubmit(e) {
+// --- Firebase Auth ---
+loginForm.addEventListener('submit', async (e)=>{
     e.preventDefault();
-    document.getElementById("login-error").classList.remove("hidden");
+    const email = loginForm.email.value;
+    const password = loginForm.password.value;
+    try {
+        await signInWithEmailAndPassword(auth, email, password);
+        loginModal.classList.remove('active');
+    } catch(err) {
+        alert(err.message);
+    }
+});
+
+logoutBtn.addEventListener('click', ()=>{ signOut(auth); });
+
+onAuthStateChanged(auth, user=>{
+    if(user){
+        userEmailDisplay.innerText = user.email;
+        logoutBtn.style.display = 'flex';
+        loadPrayers();
+        loadAccounts();
+    } else {
+        userEmailDisplay.innerText = 'Guest';
+        logoutBtn.style.display = 'none';
+        prayerList.innerHTML = '';
+        accountsList.innerHTML = '';
+        transactionList.innerHTML = '';
+    }
+});
+
+// --- Prayer Tracker ---
+const prayers = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+async function loadPrayers(){
+    prayerList.innerHTML = '';
+    prayers.forEach(p=>{
+        const div = document.createElement('div');
+        div.classList.add('prayer-card');
+        div.innerHTML = `<span>${p}</span><input type="checkbox" class="prayer-checkbox">`;
+        prayerList.appendChild(div);
+    });
 }
 
-// ================= FINANCE LOGIC =================
+// --- Finance Tracker ---
+let accounts = ['Bkash','Nagad','EBL','IFIC'];
 let transactions = [];
 
-function submitTransaction(e) {
-    e.preventDefault();
-
-    const form = new FormData(e.target);
-    const item = {
-        title: form.get("title"),
-        amount: parseFloat(form.get("amount")),
-        type: form.get("type")
-    };
-
-    transactions.push(item);
-    renderTransactions();
-    closeTransactionModal();
-}
-
-function renderTransactions() {
-    const list = document.getElementById("transaction-list");
-    list.innerHTML = "";
-
-    let income = 0, expense = 0;
-
-    transactions.forEach(t => {
-        const div = document.createElement("div");
-        div.className = "bg-white p-4 rounded-xl shadow";
-        div.innerHTML = `
-            <div class="flex justify-between">
-                <span>${t.title}</span>
-                <span class="${t.type === "income" ? "text-emerald-600" : "text-rose-600"}">৳${t.amount}</span>
-            </div>
-        `;
-        list.appendChild(div);
-
-        if (t.type === "income") income += t.amount;
-        else expense += t.amount;
+function loadAccounts(){
+    accountsList.innerHTML = '';
+    accounts.forEach(a=>{
+        const div = document.createElement('div');
+        div.classList.add('account-card');
+        div.innerHTML = `<strong>${a}</strong>`;
+        accountsList.appendChild(div);
     });
-
-    document.getElementById("total-income").textContent = `৳${income}`;
-    document.getElementById("total-expense").textContent = `৳${expense}`;
-    document.getElementById("total-balance").textContent = `৳${income - expense}`;
+    updateFinance();
 }
 
-function clearTransactions() {
-    transactions = [];
-    renderTransactions();
+function addTransaction(type, account, amount, note){
+    transactions.push({type, account, amount:parseFloat(amount), note});
+    updateFinance();
+}
+
+function updateFinance(){
+    let income = transactions.filter(t=>t.type==='income').reduce((sum,t)=>sum+t.amount,0);
+    let expense = transactions.filter(t=>t.type==='expense').reduce((sum,t)=>sum+t.amount,0);
+    totalIncomeEl.innerText = `৳${income}`;
+    totalExpenseEl.innerText = `৳${expense}`;
+    totalBalanceEl.innerText = `৳${income-expense}`;
+
+    transactionList.innerHTML = '';
+    transactions.forEach(t=>{
+        const div = document.createElement('div');
+        div.classList.add('transaction-card');
+        div.innerText = `${t.account} - ${t.type} - ৳${t.amount} - ${t.note}`;
+        transactionList.appendChild(div);
+    });
 }
