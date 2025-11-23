@@ -1,54 +1,32 @@
-.no-scrollbar::-webkit-scrollbar {
-    display: none;
-}
-.no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    margin: 0;
+    padding: 0;
+    background: #f0f2f5;
 }
 
-.modal {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.6);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
+h1, h2, h3, h4 { margin: 0; }
 
-.modal-box {
+button { cursor: pointer; }
+
+.nav-btn.active { color: #10b981; }
+
+.prayer-card, .finance-card, .account-card, .transaction-card {
+    border-radius: 16px;
+    padding: 12px;
+    margin-bottom: 8px;
     background: white;
-    width: 90%;
-    max-width: 360px;
-    padding: 20px;
-    border-radius: 20px;
-    position: relative;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
 }
 
-.modal-close {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: #f1f5f9;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
+.modal { 
+    position: fixed; inset: 0; display: none; 
+    background: rgba(0,0,0,0.5); 
+    justify-content: center; align-items: center;
 }
 
-.input {
-    width: 100%;
-    padding: 12px;
-    background: #f1f5f9;
-    border-radius: 10px;
-}
+.modal.active { display: flex; }
 
-.btn-primary {
-    background: #4f46e5;
-    color: white;
-    padding: 12px;
-    border-radius: 10px;
-    font-weight: bold;
-}
-
-.nav-btn.active {
-    color: #0f766e;
-}
+input, select { padding: 10px; border-radius: 10px; border: 1px solid #ccc; width: 100%; }
