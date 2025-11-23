@@ -16,12 +16,12 @@
     <button id="logout-btn">Log Out</button>
 </header>
 
-<section id="prayer-section">
+<section id="prayer-section" class="card">
     <h2>Prayers</h2>
     <div id="prayer-list"></div>
 </section>
 
-<section id="finance-section">
+<section id="finance-section" class="card">
     <h2>Finance</h2>
     <div id="accounts-list"></div>
     <h3>Total Balance: <span id="total-balance">৳0</span></h3>
@@ -31,12 +31,16 @@
 </section>
 
 <div id="login-modal" class="modal active">
-    <form id="login-form" class="modal-content">
-        <input type="email" name="email" placeholder="Email" required>
-        <input type="password" name="password" placeholder="Password" required>
-        <button type="submit">Login</button>
-    </form>
+    <div class="modal-content">
+        <form id="login-form">
+            <input type="email" name="email" placeholder="Email" required>
+            <input type="password" name="password" placeholder="Password" required>
+            <button type="submit">Login</button>
+        </form>
+    </div>
 </div>
+
+<div class="fab" id="add-fab">+</div>
 
 </body>
 </html>
