@@ -4,7 +4,7 @@ import { collection, addDoc, getDocs, doc, setDoc, getDoc, query, onSnapshot, up
 
 // --- DOM Elements ---
 const loginModal = document.getElementById('login-modal');
-const loginForm = document.getElementById('login-form');
+const loginForm = document.querySelector('#login-modal form');
 const logoutBtn = document.getElementById('logout-btn');
 const userEmailDisplay = document.getElementById('user-email-display');
 const prayerList = document.getElementById('prayer-list');
@@ -13,28 +13,57 @@ const transactionList = document.getElementById('transaction-list');
 const totalBalanceEl = document.getElementById('total-balance');
 const totalIncomeEl = document.getElementById('total-income');
 const totalExpenseEl = document.getElementById('total-expense');
+const loadingOverlay = document.getElementById('loading-overlay');
 
-const prayerTabBtn = document.getElementById('prayer-tab-btn');
-const financeTabBtn = document.getElementById('finance-tab-btn');
-const prayerSection = document.getElementById('prayer-section');
-const financeSection = document.getElementById('finance-section');
 
 let currentUser = null;
 
-// --- Navigation ---
-prayerTabBtn.addEventListener('click', () => {
-    prayerTabBtn.classList.add('active');
-    financeTabBtn.classList.remove('active');
-    prayerSection.classList.add('active');
-    financeSection.classList.remove('active');
-});
+// --- Loading Overlay ---
+function forceHideLoader() {
+    loadingOverlay.style.opacity = '0';
+    setTimeout(() => {
+        loadingOverlay.style.display = 'none';
+    }, 300); // Match animation duration
+}
+window.forceHideLoader = forceHideLoader;
 
-financeTabBtn.addEventListener('click', () => {
-    financeTabBtn.classList.add('active');
-    prayerTabBtn.classList.remove('active');
-    financeSection.classList.add('active');
-    prayerSection.classList.remove('active');
-});
+
+// --- Navigation ---
+const views = {
+    prayer: document.getElementById('view-prayer'),
+    history: document.getElementById('view-history'),
+    finance: document.getElementById('view-finance')
+};
+const navButtons = {
+    prayer: document.getElementById('nav-prayer'),
+    history: document.getElementById('nav-history'),
+    finance: document.getElementById('nav-finance')
+}
+const headerTitle = document.getElementById('header-title');
+const mainHeader = document.getElementById('main-header');
+
+function switchTab(tab) {
+    Object.values(views).forEach(v => v.classList.add('hidden'));
+    views[tab].classList.remove('hidden');
+
+    Object.values(navButtons).forEach(b => b.classList.remove('text-emerald-600', 'text-indigo-600', 'active'));
+    Object.values(navButtons).forEach(b => b.classList.add('text-slate-400'));
+    
+    if(tab === 'finance') {
+        navButtons[tab].classList.add('text-indigo-600', 'active');
+        headerTitle.classList.remove('text-emerald-600');
+        headerTitle.classList.add('text-indigo-600');
+        headerTitle.innerText = 'My Wallet';
+        mainHeader.classList.add('border-indigo-100');
+    } else {
+        navButtons[tab].classList.add('text-emerald-600', 'active');
+        headerTitle.classList.remove('text-indigo-600');
+        headerTitle.classList.add('text-emerald-600');
+        headerTitle.innerText = 'Sajda';
+        mainHeader.classList.remove('border-indigo-100');
+    }
+}
+window.switchTab = switchTab;
 
 
 // --- Firebase Auth ---
@@ -44,69 +73,128 @@ loginForm.addEventListener('submit', async (e) => {
     const password = loginForm.password.value;
     try {
         await signInWithEmailAndPassword(auth, email, password);
+        closeLoginModal();
     } catch (err) {
-        alert(err.message);
+        document.getElementById('login-error').innerText = err.message;
+        document.getElementById('login-error').classList.remove('hidden');
     }
 });
 
-logoutBtn.addEventListener('click', () => { signOut(auth); });
+logoutBtn.addEventListener('click', () => { 
+    signOut(auth); 
+    toggleSettings(); // Close settings modal on logout
+});
 
 onAuthStateChanged(auth, user => {
+    forceHideLoader();
     if (user) {
         currentUser = user;
         userEmailDisplay.innerText = user.email;
-        logoutBtn.style.display = 'block';
-        loginModal.classList.remove('active');
+        document.getElementById('user-id-display').innerText = user.uid;
+        document.getElementById('header-login-btn').classList.add('hidden');
+        logoutBtn.classList.remove('hidden');
         loadAndListenPrayers();
         listenToFinanceData();
-
-        // Show default tab
-        prayerTabBtn.classList.add('active');
-        financeTabBtn.classList.remove('active');
-        prayerSection.classList.add('active');
-        financeSection.classList.remove('active');
-
+        switchTab('prayer');
     } else {
         currentUser = null;
         userEmailDisplay.innerText = 'Guest';
-        logoutBtn.style.display = 'none';
+        document.getElementById('user-id-display').innerText = 'Not logged in';
+        logoutBtn.classList.add('hidden');
+        document.getElementById('header-login-btn').classList.remove('hidden');
         prayerList.innerHTML = '';
         accountsList.innerHTML = '';
-        transactionList.innerHTML = '';
-        loginModal.classList.add('active');
+        transactionList.innerHTML = '<div class="text-center py-10 text-slate-400 text-sm">Login to track finances</div>';
     }
 });
 
 // --- Prayer Tracker ---
 const prayers = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
-const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+let selectedDate = new Date();
+
+function changeDate(offset) {
+    selectedDate.setDate(selectedDate.getDate() + offset);
+    loadAndListenPrayers();
+    updateDateDisplay();
+}
+window.changeDate = changeDate;
+
+function updateDateDisplay() {
+    const today = new Date();
+    const isToday = selectedDate.toDateString() === today.toDateString();
+    document.getElementById('current-date-display').innerText = isToday ? 'Today' : selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+}
 
 async function loadAndListenPrayers() {
-    if (!currentUser) return;
+    if (!currentUser) {
+        renderGuestPrayerUI();
+        return;
+    };
+    updateDateDisplay();
 
-    const prayerDocRef = doc(db, 'users', currentUser.uid, 'prayers', today);
+    const dateString = selectedDate.toISOString().slice(0, 10);
+    const prayerDocRef = doc(db, 'users', currentUser.uid, 'prayers', dateString);
 
     onSnapshot(prayerDocRef, (docSnap) => {
         const prayerData = docSnap.exists() ? docSnap.data() : {};
+        let completedCount = 0;
         prayerList.innerHTML = '';
         prayers.forEach(p => {
-            const div = document.createElement('div');
-            div.classList.add('prayer-card');
-            div.innerHTML = `<span>${p}</span><input type="checkbox" class="prayer-checkbox" data-prayer="${p}">`;
-            const checkbox = div.querySelector('.prayer-checkbox');
-            if (prayerData[p]) {
-                checkbox.checked = true;
-            }
-            checkbox.addEventListener('change', async (e) => {
-                const prayerName = e.target.dataset.prayer;
-                const isChecked = e.target.checked;
-                const updateData = {};
-                updateData[prayerName] = isChecked;
-                await setDoc(prayerDocRef, updateData, { merge: true });
-            });
-            prayerList.appendChild(div);
+            const isCompleted = prayerData[p];
+            if(isCompleted) completedCount++;
+
+            const card = document.createElement('div');
+            card.className = `prayer-card bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-slate-100 ${isCompleted ? 'text-emerald-600 font-bold' : 'text-slate-600'}`;
+            card.innerHTML = `
+                <span>${p}</span>
+                <i class="fa-solid ${isCompleted ? 'fa-check-circle' : 'fa-circle'} text-xl"></i>
+            `;
+            card.onclick = () => togglePrayer(p, !isCompleted);
+            prayerList.appendChild(card);
         });
+        updateProgress(completedCount);
     });
+}
+
+function renderGuestPrayerUI() {
+    prayerList.innerHTML = '';
+    prayers.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'prayer-card bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-slate-100 text-slate-400';
+        card.innerHTML = `
+            <span>${p}</span>
+            <i class="fa-solid fa-circle text-xl"></i>
+        `;
+        card.onclick = openLoginModal;
+        prayerList.appendChild(card);
+    });
+    updateProgress(0);
+}
+
+
+async function togglePrayer(prayerName, isCompleted) {
+    if (!currentUser) return;
+    const dateString = selectedDate.toISOString().slice(0, 10);
+    const prayerDocRef = doc(db, 'users', currentUser.uid, 'prayers', dateString);
+    const updateData = {};
+    updateData[prayerName] = isCompleted;
+    await setDoc(prayerDocRef, updateData, { merge: true });
+}
+
+function updateProgress(completed) {
+    const progressRing = document.getElementById('progress-ring');
+    const progressText = document.getElementById('progress-text');
+    const motivationalText = document.getElementById('motivational-text');
+    const total = prayers.length;
+    const circumference = 2 * Math.PI * 28; // 2 * pi * radius
+    const offset = circumference - (completed / total) * circumference;
+    
+    progressRing.style.strokeDashoffset = offset;
+    progressText.innerText = `${completed}/${total}`;
+    
+    if(completed === 0) motivationalText.innerText = "Start with Bismillah";
+    else if(completed < total) motivationalText.innerText = "Keep going, you're doing great!";
+    else motivationalText.innerText = "Alhamdulillah! All prayers completed.";
 }
 
 
@@ -171,3 +259,70 @@ function updateFinanceUI() {
         transactionList.appendChild(div);
     });
 }
+
+// --- Modals --- 
+const loginModalEl = document.getElementById('login-modal');
+const settingsModalEl = document.getElementById('settings-modal');
+const transactionModalEl = document.getElementById('transaction-modal');
+
+function openLoginModal() { 
+    loginModalEl.classList.remove('hidden');
+    setTimeout(() => { loginModalEl.style.opacity = 1; loginModalEl.querySelector('div').style.transform = 'scale(1)'; }, 10);
+}
+window.openLoginModal = openLoginModal;
+
+function closeLoginModal() {
+    loginModalEl.style.opacity = 0;
+    loginModalEl.querySelector('div').style.transform = 'scale(0.95)';
+    setTimeout(() => { loginModalEl.classList.add('hidden'); }, 200);
+}
+window.closeLoginModal = closeLoginModal;
+
+function toggleSettings() {
+    const isOpen = !settingsModalEl.classList.contains('hidden');
+    if(isOpen) {
+        settingsModalEl.style.opacity = 0;
+        settingsModalEl.querySelector('div').style.transform = 'translateY(100%)';
+        setTimeout(() => { settingsModalEl.classList.add('hidden'); }, 300);
+    } else {
+        settingsModalEl.classList.remove('hidden');
+        setTimeout(() => { 
+            settingsModalEl.style.opacity = 1; 
+            settingsModalEl.querySelector('div').style.transform = 'translateY(0)';
+        }, 10);
+    }
+}
+window.toggleSettings = toggleSettings;
+
+
+function handleTransactionSubmit(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const type = formData.get('type');
+    const amount = formData.get('amount');
+    const account = formData.get('account');
+    const note = formData.get('note');
+
+    if(currentUser && amount && account) {
+        addTransaction(type, account, amount, note);
+        closeTransactionModal();
+        event.target.reset();
+    } else {
+        alert('Please fill all fields');
+    }
+}
+window.handleTransactionSubmit = handleTransactionSubmit;
+
+
+function openTransactionModal() { 
+    transactionModalEl.classList.remove('hidden');
+    setTimeout(() => { transactionModalEl.style.opacity = 1; transactionModalEl.querySelector('div').style.transform = 'translateY(0)'; }, 10);
+}
+window.openTransactionModal = openTransactionModal;
+
+function closeTransactionModal() {
+    transactionModalEl.style.opacity = 0;
+    transactionModalEl.querySelector('div').style.transform = 'translateY(100%)';
+    setTimeout(() => { transactionModalEl.classList.add('hidden'); }, 300);
+}
+window.closeTransactionModal = closeTransactionModal;
