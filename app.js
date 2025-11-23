@@ -102,7 +102,8 @@ onAuthStateChanged(auth, user => {
         document.getElementById('user-id-display').innerText = 'Not logged in';
         logoutBtn.classList.add('hidden');
         document.getElementById('header-login-btn').classList.remove('hidden');
-        prayerList.innerHTML = '';
+        loadAndListenPrayers(); // Render guest prayer view
+        switchTab('prayer'); // Default to prayer view
         accountsList.innerHTML = '';
         transactionList.innerHTML = '<div class="text-center py-10 text-slate-400 text-sm">Login to track finances</div>';
     }
@@ -245,6 +246,7 @@ window.addTransaction = async function(type, account, amount, note) {
 }
 
 function updateFinanceUI() {
+    if (!currentUser) return;
     let income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
     let expense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
     totalIncomeEl.innerText = `৳${income}`;
