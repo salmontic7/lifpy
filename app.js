@@ -73,9 +73,8 @@ loginForm.addEventListener('submit', async (e) => {
     const password = loginForm.password.value;
     try {
         await signInWithEmailAndPassword(auth, email, password);
-        closeLoginModal();
     } catch (err) {
-        document.getElementById('login-error').innerText = err.message;
+        document.getElementById('login-error').innerText = "Invalid credentials.";
         document.getElementById('login-error').classList.remove('hidden');
     }
 });
@@ -89,23 +88,36 @@ onAuthStateChanged(auth, user => {
     forceHideLoader();
     if (user) {
         currentUser = user;
+        // Update UI for logged-in user
         userEmailDisplay.innerText = user.email;
         document.getElementById('user-id-display').innerText = user.uid;
         document.getElementById('header-login-btn').classList.add('hidden');
         logoutBtn.classList.remove('hidden');
+        
+        closeLoginModal();
+        
+        // Load user data
         loadAndListenPrayers();
         listenToFinanceData();
         switchTab('prayer');
     } else {
+        // User is logged out, force login
         currentUser = null;
+        
+        // Reset UI to a clean logged-out state
         userEmailDisplay.innerText = 'Guest';
         document.getElementById('user-id-display').innerText = 'Not logged in';
         logoutBtn.classList.add('hidden');
         document.getElementById('header-login-btn').classList.remove('hidden');
-        loadAndListenPrayers(); // Render guest prayer view
-        switchTab('prayer'); // Default to prayer view
+        
+        // Clear all personal data from the screen
+        prayerList.innerHTML = '';
         accountsList.innerHTML = '';
-        transactionList.innerHTML = '<div class="text-center py-10 text-slate-400 text-sm">Login to track finances</div>';
+        transactionList.innerHTML = '';
+        updateProgress(0); // Reset progress circle
+        
+        // Show the login modal
+        openLoginModal();
     }
 });
 
@@ -128,7 +140,7 @@ function updateDateDisplay() {
 
 async function loadAndListenPrayers() {
     if (!currentUser) {
-        renderGuestPrayerUI();
+        // Now does nothing for logged out users, preventing the empty list.
         return;
     };
     updateDateDisplay();
@@ -145,7 +157,7 @@ async function loadAndListenPrayers() {
             if(isCompleted) completedCount++;
 
             const card = document.createElement('div');
-            card.className = `prayer-card bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-slate-100 ${isCompleted ? 'text-emerald-600 font-bold' : 'text-slate-600'}`;
+            card.className = `prayer-card bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-slate-100 ${isCompleted ? 'text-emerald-600 font-bold' : 'text-slate-600'} fade-in`;
             card.innerHTML = `
                 <span>${p}</span>
                 <i class="fa-solid ${isCompleted ? 'fa-check-circle' : 'fa-circle'} text-xl"></i>
@@ -157,6 +169,7 @@ async function loadAndListenPrayers() {
     });
 }
 
+// This function is no longer called but is kept to avoid breaking other parts.
 function renderGuestPrayerUI() {
     prayerList.innerHTML = '';
     prayers.forEach(p => {
@@ -230,7 +243,6 @@ function listenToFinanceData() {
     });
 }
 
-// This function needs to be callable from outside, e.g. from a form
 window.addTransaction = async function(type, account, amount, note) {
     if (!currentUser) {
         alert("You must be logged in to add a transaction.");
